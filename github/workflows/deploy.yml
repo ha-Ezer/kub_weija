@@ -15,28 +15,23 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     
+    env:
+      GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+      GOOGLE_SHEETS_API_KEY: ${{ secrets.GOOGLE_SHEETS_API_KEY }}
+      EMAIL_SERVICE_ENDPOINT: ${{ secrets.EMAIL_SERVICE_ENDPOINT }}
+    
     steps:
     - name: Checkout
       uses: actions/checkout@v4
     
-    - name: Replace secrets in HTML file
+    - name: Replace placeholders with environment variables
       run: |
-        echo "Before replacement:"
-        grep -n "YOUR_.*_HERE" index.html || echo "No placeholders found in index.html"
+        # Simple find and replace using environment variables
+        sed -i "s|YOUR_SPREADSHEET_ID_HERE|$GOOGLE_SHEETS_ID|g" index.html
+        sed -i "s|YOUR_API_KEY_HERE|$GOOGLE_SHEETS_API_KEY|g" index.html
+        sed -i "s|YOUR_EMAIL_SERVICE_ENDPOINT|$EMAIL_SERVICE_ENDPOINT|g" index.html
         
-        # Replace placeholders with actual secrets (escape forward slashes for sed)
-        sed -i "s|YOUR_SPREADSHEET_ID_HERE|${{ secrets.GOOGLE_SHEETS_ID }}|g" index.html
-        sed -i "s|YOUR_API_KEY_HERE|${{ secrets.GOOGLE_SHEETS_API_KEY }}|g" index.html
-        sed -i "s|YOUR_EMAIL_SERVICE_ENDPOINT|${{ secrets.EMAIL_SERVICE_ENDPOINT }}|g" index.html
-        sed -i "s|YOUR_EMAILJS_SERVICE_ID|${{ secrets.EMAILJS_SERVICE_ID }}|g" index.html
-        
-        echo "After replacement:"
-        grep -n "YOUR_.*_HERE" index.html || echo "All placeholders replaced successfully"
-        
-        # Verify the spreadsheet ID was inserted (show first 10 chars for security)
-        echo "Spreadsheet ID check:"
-        grep -o "spreadsheetId: '[^']*'" index.html | head -c 30
-        echo "..."
+        echo "✅ Placeholders replaced with environment variables"
     
     - name: Setup Pages
       uses: actions/configure-pages@v4
@@ -47,5 +42,4 @@ jobs:
         path: '.'
     
     - name: Deploy to GitHub Pages
-      id: deployment
       uses: actions/deploy-pages@v4

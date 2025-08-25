@@ -460,12 +460,12 @@
     </div>
     
     <script>
-        // Configuration - Replace with your actual Google Sheets details
+        // Configuration - Placeholders will be replaced by GitHub Actions
         const SHEET_CONFIG = {
-            spreadsheetId: '1pn54895oOzWE7tK1t6e8Y7hgeJXmOPcYOrQJJsettEA', // Replace with actual ID from Google Sheets URL
-            apiKey: 'AIzaSyAzdbBv9ZNnSP0d4kaptH_Stw3iyxr8uXM', // Replace with actual API key from Google Cloud Console
-            range: 'KUB Weija!A:L', // Adjust range as needed (A:L covers columns A through L)
-            emailService: 'YOUR_EMAIL_SERVICE_ENDPOINT' // Replace with email service endpoint
+            spreadsheetId: 'YOUR_SPREADSHEET_ID_HERE',
+            apiKey: 'YOUR_API_KEY_HERE', 
+            range: 'KUB Weija!A:L',
+            emailService: 'YOUR_EMAIL_SERVICE_ENDPOINT'
         };
         
         // Quick test function to verify your configuration
@@ -609,7 +609,7 @@
                             endDate: row[3] || '',
                             amountDue: row[4] || '0',
                             amountPaid: row[5] || '0',
-                            rentBalance: row[6] || rentBalance,
+                            rentBalance: rentBalance,
                             phoneNumber: row[7] || '',
                             ecgMeter: row[8] || '',
                             email: row[9] || '',
