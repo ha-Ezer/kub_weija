@@ -1,0 +1,51 @@
+# .github/workflows/deploy.yml
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Replace secrets in HTML file
+      run: |
+        echo "Before replacement:"
+        grep -n "YOUR_.*_HERE" index.html || echo "No placeholders found in index.html"
+        
+        # Replace placeholders with actual secrets (escape forward slashes for sed)
+        sed -i "s|YOUR_SPREADSHEET_ID_HERE|${{ secrets.GOOGLE_SHEETS_ID }}|g" index.html
+        sed -i "s|YOUR_API_KEY_HERE|${{ secrets.GOOGLE_SHEETS_API_KEY }}|g" index.html
+        sed -i "s|YOUR_EMAIL_SERVICE_ENDPOINT|${{ secrets.EMAIL_SERVICE_ENDPOINT }}|g" index.html
+        sed -i "s|YOUR_EMAILJS_SERVICE_ID|${{ secrets.EMAILJS_SERVICE_ID }}|g" index.html
+        
+        echo "After replacement:"
+        grep -n "YOUR_.*_HERE" index.html || echo "All placeholders replaced successfully"
+        
+        # Verify the spreadsheet ID was inserted (show first 10 chars for security)
+        echo "Spreadsheet ID check:"
+        grep -o "spreadsheetId: '[^']*'" index.html | head -c 30
+        echo "..."
+    
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+    
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: '.'
+    
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
