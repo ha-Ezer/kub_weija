@@ -14,7 +14,8 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+    environment:
+      name: github-pages
     env:
       GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
       GOOGLE_SHEETS_API_KEY: ${{ secrets.GOOGLE_SHEETS_API_KEY }}
