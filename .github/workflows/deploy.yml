@@ -38,9 +38,6 @@ jobs:
         
         echo "✅ Placeholders replaced with environment variables"
     
-    - name: Debug replaced config
-      run: grep 'GOOGLE_SHEETS' index.html
-    
     - name: Setup Pages
       uses: actions/configure-pages@v4
     
