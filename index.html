@@ -460,12 +460,11 @@
     </div>
     
     <script>
-        // Configuration - Placeholders will be replaced by GitHub Actions
+        // Configuration - Only need your Google Apps Script Web App URL
         const SHEET_CONFIG = {
-            spreadsheetId: 'GOOGLE_SHEETS_ID_PLACEHOLDER',
-            apiKey: 'GOOGLE_SHEETS_API_KEY_PLACEHOLDER',
-            range: 'KUB Weija!A:L',
-            emailService: 'YOUR_EMAIL_SERVICE_ENDPOINT'
+            webAppUrl: 'https://script.google.com/macros/s/AKfycbzlkGLAafL8CPASqEjs-Up_iSXuoNgBjV-QTIbijD5po_faRoAIF9T3mFsKOoxF1B8N/exec', // Replace with your actual web app URL
+            range: 'KUB Weija!A:L', // Keep for reference, but not used
+            emailService: 'google_apps_script' // Using Apps Script for email
         };
         
         // Quick test function to verify your configuration
@@ -518,7 +517,7 @@
             // Sample data for demonstration
             tenancyData = [
                 {
-                    roomNo: '1011',
+                    roomNo: '101',
                     tenantName: 'John Doe',
                     startDate: '2024-01-15',
                     endDate: '2024-07-15',
@@ -565,60 +564,37 @@
         
         async function loadDataFromGoogleSheets() {
             // Test configuration first
-            if (!testGoogleSheetsConnection()) {
+            if (SHEET_CONFIG.webAppUrl === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE') {
+                showError('Please update SHEET_CONFIG with your Google Apps Script Web App URL');
                 return;
             }
             
             try {
                 showLoading();
-                const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_CONFIG.spreadsheetId}/values/${SHEET_CONFIG.range}?key=${SHEET_CONFIG.apiKey}`;
                 
-                console.log('Fetching from URL:', url.replace(SHEET_CONFIG.apiKey, 'API_KEY_HIDDEN'));
+                // Call Google Apps Script web app
+                const url = `${SHEET_CONFIG.webAppUrl}?action=getTenants&timestamp=${Date.now()}`;
                 
-                const response = await fetch(url);
+                console.log('Fetching from Google Apps Script:', url);
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Cache-Control': 'no-cache'
+                    }
+                });
                 
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('API Response:', errorText);
-                    
-                    if (response.status === 400) {
-                        throw new Error('Invalid spreadsheet ID or range. Please check your configuration.');
-                    } else if (response.status === 403) {
-                        throw new Error('API key invalid or permissions denied. Make sure your Google Sheets is publicly accessible.');
-                    } else {
-                        throw new Error(`HTTP ${response.status}: ${errorText}`);
-                    }
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
-                const data = await response.json();
-                console.log('Raw data from Google Sheets:', data);
+                const result = await response.json();
+                console.log('Response from Google Apps Script:', result);
                 
-                if (data.values && data.values.length > 1) {
-                    // Skip header row and process data
-                    const rows = data.values.slice(1);
-                    tenancyData = rows.map((row, index) => {
-                        // Calculate rent balance
-                        const amountDue = parseFloat(row[4]) || 0;
-                        const amountPaid = parseFloat(row[5]) || 0;
-                        const rentBalance = (amountDue - amountPaid).toFixed(2);
-                        
-                        return {
-                            roomNo: row[0] || '',
-                            tenantName: row[1] || '',
-                            startDate: row[2] || '',
-                            endDate: row[3] || '',
-                            amountDue: row[4] || '0',
-                            amountPaid: row[5] || '0',
-                            rentBalance: rentBalance,
-                            phoneNumber: row[7] || '',
-                            ecgMeter: row[8] || '',
-                            email: row[9] || '',
-                            link: row[10] || '',
-                            notes: row[11] || ''
-                        };
-                    });
+                if (result.success && result.data) {
+                    tenancyData = result.data;
                     
-                    console.log(`Loaded ${tenancyData.length} tenant records`);
+                    console.log(`Loaded ${tenancyData.length} tenant records from Apps Script`);
                     hideLoading();
                     renderTable();
                     updateStatusCards();
@@ -626,20 +602,20 @@
                     
                 } else {
                     hideLoading();
-                    showError('No data found in Google Sheets. Make sure your sheet has data and the range is correct.');
+                    showError(result.error || 'Failed to load data from Google Apps Script');
                 }
                 
             } catch (error) {
                 hideLoading();
-                console.error('Error loading from Google Sheets:', error);
+                console.error('Error loading from Google Apps Script:', error);
                 showError(`Failed to load data: ${error.message}`);
                 
                 // Show troubleshooting tips
                 console.log('Troubleshooting tips:');
-                console.log('1. Make sure your Google Sheets is publicly accessible');
-                console.log('2. Verify your spreadsheet ID and API key');
-                console.log('3. Check that the range A:L matches your sheet structure');
-                console.log('4. Ensure Google Sheets API is enabled in Google Cloud Console');
+                console.log('1. Make sure your Google Apps Script is deployed as a web app');
+                console.log('2. Verify the web app URL is correct');
+                console.log('3. Check that the web app has permissions to access your sheet');
+                console.log('4. Ensure the web app is set to execute as you and allow anonymous access');
             }
         }
         
@@ -802,45 +778,44 @@
         }
         
         async function sendExpiryReminders() {
-            const today = new Date();
-            const reminders = [];
-            
-            tenancyData.forEach(tenant => {
-                const endDate = new Date(tenant.endDate);
-                const daysToExpiry = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
+            try {
+                showLoading();
+                const url = `${SHEET_CONFIG.webAppUrl}?action=sendReminders&type=expiry&timestamp=${Date.now()}`;
                 
-                if (daysToExpiry <= 90 && daysToExpiry > 0) { // 3 months = ~90 days
-                    let urgency = '';
-                    if (daysToExpiry <= 30) urgency = '1 month';
-                    else if (daysToExpiry <= 60) urgency = '2 months';
-                    else urgency = '3 months';
-                    
-                    reminders.push({
-                        tenant: tenant,
-                        urgency: urgency,
-                        daysLeft: daysToExpiry
-                    });
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                hideLoading();
+                if (result.success) {
+                    showSuccess(result.message);
+                } else {
+                    showError(result.error || 'Failed to send expiry reminders');
                 }
-            });
-            
-            if (reminders.length > 0) {
-                // In production, send actual emails
-                console.log('Expiry reminders to send:', reminders);
-                showSuccess(`${reminders.length} expiry reminder(s) sent successfully.`);
-            } else {
-                showSuccess('No expiry reminders needed at this time.');
+            } catch (error) {
+                hideLoading();
+                console.error('Error sending expiry reminders:', error);
+                showError(`Failed to send reminders: ${error.message}`);
             }
         }
         
         async function sendRentReminders() {
-            const rentDueList = tenancyData.filter(tenant => parseFloat(tenant.rentBalance) > 0);
-            
-            if (rentDueList.length > 0) {
-                // In production, send actual emails
-                console.log('Rent reminders to send:', rentDueList);
-                showSuccess(`${rentDueList.length} rent reminder(s) sent successfully.`);
-            } else {
-                showSuccess('No rent reminders needed - all tenants are up to date!');
+            try {
+                showLoading();
+                const url = `${SHEET_CONFIG.webAppUrl}?action=sendReminders&type=rent&timestamp=${Date.now()}`;
+                
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                hideLoading();
+                if (result.success) {
+                    showSuccess(result.message);
+                } else {
+                    showError(result.error || 'Failed to send rent reminders');
+                }
+            } catch (error) {
+                hideLoading();
+                console.error('Error sending rent reminders:', error);
+                showError(`Failed to send reminders: ${error.message}`);
             }
         }
         
