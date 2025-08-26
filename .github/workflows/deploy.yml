@@ -1,0 +1,53 @@
+# .github/workflows/deploy.yml
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    env:
+      GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+      GOOGLE_SHEETS_API_KEY: ${{ secrets.GOOGLE_SHEETS_API_KEY }}
+      EMAIL_SERVICE_ENDPOINT: ${{ secrets.EMAIL_SERVICE_ENDPOINT }}
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Debug environment variables
+      run: |
+        echo "GOOGLE_SHEETS_ID: $GOOGLE_SHEETS_ID"
+        echo "GOOGLE_SHEETS_API_KEY: $GOOGLE_SHEETS_API_KEY"
+        echo "EMAIL_SERVICE_ENDPOINT: $EMAIL_SERVICE_ENDPOINT"
+
+    - name: Replace placeholders with environment variables
+      run: |
+        sed -i "s|GOOGLE_SHEETS_ID_PLACEHOLDER|$GOOGLE_SHEETS_ID|g" index.html
+        sed -i "s|GOOGLE_SHEETS_API_KEY_PLACEHOLDER|$GOOGLE_SHEETS_API_KEY|g" index.html
+        sed -i "s|YOUR_EMAIL_SERVICE_ENDPOINT|$EMAIL_SERVICE_ENDPOINT|g" index.html
+        
+        echo "✅ Placeholders replaced with environment variables"
+    
+    - name: Debug replaced config
+      run: grep 'GOOGLE_SHEETS' index.html
+    
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+    
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: '.'
+    
+    - name: Deploy to GitHub Pages
+      uses: actions/deploy-pages@v4
