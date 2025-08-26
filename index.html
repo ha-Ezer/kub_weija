@@ -517,7 +517,7 @@
             // Sample data for demonstration
             tenancyData = [
                 {
-                    roomNo: '102',
+                    roomNo: '101',
                     tenantName: 'John Doe',
                     startDate: '2024-01-15',
                     endDate: '2024-07-15',
@@ -572,10 +572,22 @@
             try {
                 showLoading();
                 
-                // Call Google Apps Script web app
-                const url = `${SHEET_CONFIG.webAppUrl}?action=getTenants&timestamp=${Date.now()}`;
+                // Check if running locally and use CORS proxy
+                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                let url;
                 
-                console.log('Fetching from Google Apps Script:', url);
+                if (isLocal) {
+                    // Use CORS proxy for local development
+                    const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+                    url = `${corsProxy}${SHEET_CONFIG.webAppUrl}?action=getTenants&timestamp=${Date.now()}`;
+                    console.log('🛠️ Running locally - using CORS proxy');
+                } else {
+                    // Direct call for production
+                    url = `${SHEET_CONFIG.webAppUrl}?action=getTenants&timestamp=${Date.now()}`;
+                    console.log('🚀 Running in production - direct call');
+                }
+                
+                console.log('Fetching from:', url);
                 
                 const response = await fetch(url, {
                     method: 'GET',
@@ -608,14 +620,19 @@
             } catch (error) {
                 hideLoading();
                 console.error('Error loading from Google Apps Script:', error);
-                showError(`Failed to load data: ${error.message}`);
+                
+                if (error.message.includes('CORS')) {
+                    showError('CORS error detected. For local development, try using a local server or deploy to GitHub Pages.');
+                } else {
+                    showError(`Failed to load data: ${error.message}`);
+                }
                 
                 // Show troubleshooting tips
                 console.log('Troubleshooting tips:');
-                console.log('1. Make sure your Google Apps Script is deployed as a web app');
-                console.log('2. Verify the web app URL is correct');
-                console.log('3. Check that the web app has permissions to access your sheet');
-                console.log('4. Ensure the web app is set to execute as you and allow anonymous access');
+                console.log('1. For local testing, use "python -m http.server" or similar');
+                console.log('2. Or deploy to GitHub Pages where CORS won\'t be an issue');
+                console.log('3. Make sure your Google Apps Script is deployed as a web app');
+                console.log('4. Verify the web app URL is correct');
             }
         }
         
