@@ -26,9 +26,8 @@ jobs:
     
     - name: Replace placeholders with environment variables
       run: |
-        # Simple find and replace using environment variables
-        sed -i "s|YOUR_SPREADSHEET_ID_HERE|$GOOGLE_SHEETS_ID|g" index.html
-        sed -i "s|YOUR_API_KEY_HERE|$GOOGLE_SHEETS_API_KEY|g" index.html
+        sed -i "s|GOOGLE_SHEETS_ID_PLACEHOLDER|$GOOGLE_SHEETS_ID|g" index.html
+        sed -i "s|GOOGLE_SHEETS_API_KEY_PLACEHOLDER|$GOOGLE_SHEETS_API_KEY|g" index.html
         sed -i "s|YOUR_EMAIL_SERVICE_ENDPOINT|$EMAIL_SERVICE_ENDPOINT|g" index.html
         
         echo "✅ Placeholders replaced with environment variables"
