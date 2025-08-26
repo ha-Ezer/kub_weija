@@ -362,7 +362,7 @@
                 </div>
                 <div class="status-card rent-due">
                     <div id="rentDueCount">0</div>
-                    <div>Rent Due</div>
+                    <div>Outstanding Rent</div>
                 </div>
                 <div class="status-card up-to-date">
                     <div id="upToDateCount">0</div>
@@ -462,7 +462,7 @@
     <script>
         // Configuration - Only need your Google Apps Script Web App URL
         const SHEET_CONFIG = {
-            webAppUrl: 'https://script.google.com/macros/s/AKfycbyM8aawOSWrFJyu5zjHz9knq-QllPBovB0ClQFPHFOs0pet-kojW2pV0OUTroTXmeZc7Q/exec', // Replace with your actual web app URL
+            webAppUrl: 'https://script.google.com/macros/s/AKfycbxm3_fy92qIi5HUlAzfDv7Ihxe0O3phSjhQnte3jqiNiAkQOJvIqa9tIEkysBUIR9f8Vw/exec', // Replace with your actual web app URL
             range: 'KUB Weija!A:L', // Keep for reference, but not used
             emailService: 'google_apps_script' // Using Apps Script for email
         };
@@ -511,6 +511,15 @@
             
             // Form submission
             document.getElementById('tenantForm').addEventListener('submit', handleFormSubmit);
+            
+            // Auto-calculate end date when start date changes
+            document.getElementById('startDate').addEventListener('change', function() {
+                const startDateValue = this.value;
+                if (startDateValue) {
+                    const calculatedEndDate = calculateEndDate(startDateValue);
+                    document.getElementById('endDate').value = calculatedEndDate;
+                }
+            });
         }
         
         function loadSampleData() {
@@ -668,9 +677,8 @@
                 const today = new Date();
                 const monthsToExpiry = (endDate - today) / (1000 * 60 * 60 * 24 * 30);
                 
-                if (rentBalance > 0) {
-                    row.classList.add('row-rent-due');
-                } else if (monthsToExpiry <= 1 && monthsToExpiry > 0) {
+                // Only color code for expiry warnings (not rent balance)
+                if (monthsToExpiry <= 1 && monthsToExpiry > 0) {
                     row.classList.add('row-expiring-1month');
                 } else if (monthsToExpiry <= 2 && monthsToExpiry > 1) {
                     row.classList.add('row-expiring-2months');
@@ -678,11 +686,15 @@
                     row.classList.add('row-expiring-3months');
                 }
                 
+                // Format dates properly (dd/mm/yyyy)
+                const formattedStartDate = formatDateForDisplay(tenant.startDate);
+                const formattedEndDate = formatDateForDisplay(tenant.endDate);
+                
                 row.innerHTML = `
                     <td>${tenant.roomNo}</td>
                     <td>${tenant.tenantName}</td>
-                    <td>${tenant.startDate}</td>
-                    <td>${tenant.endDate}</td>
+                    <td>${formattedStartDate}</td>
+                    <td>${formattedEndDate}</td>
                     <td>GHC ${tenant.amountDue}</td>
                     <td>GHC ${tenant.amountPaid}</td>
                     <td>GHC ${tenant.rentBalance}</td>
@@ -702,6 +714,45 @@
             document.getElementById('tenancyTable').style.display = 'table';
         }
         
+        // Function to format date for display (dd/mm/yyyy)
+        function formatDateForDisplay(dateString) {
+            if (!dateString) return '';
+            
+            try {
+                // Remove the T00:00:00.000Z part if present
+                const cleanDateString = dateString.replace('T00:00:00.000Z', '').split('T')[0];
+                
+                let date;
+                if (cleanDateString.includes('/')) {
+                    // Already in MM/DD/YYYY or DD/MM/YYYY format
+                    return cleanDateString;
+                } else if (cleanDateString.includes('-')) {
+                    // Convert from YYYY-MM-DD to DD/MM/YYYY
+                    const parts = cleanDateString.split('-');
+                    if (parts.length === 3) {
+                        const year = parts[0];
+                        const month = parts[1];
+                        const day = parts[2];
+                        return `${day}/${month}/${year}`;
+                    }
+                }
+                
+                // Try parsing as date and format
+                date = new Date(cleanDateString);
+                if (date && !isNaN(date.getTime())) {
+                    const day = date.getDate().toString().padStart(2, '0');
+                    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+                    const year = date.getFullYear();
+                    return `${day}/${month}/${year}`;
+                }
+                
+                return cleanDateString; // Return as-is if can't parse
+            } catch (error) {
+                console.log('Error formatting date for display:', dateString, error);
+                return dateString;
+            }
+        }
+        
         function updateStatusCards() {
             let expiringCount = 0;
             let rentDueCount = 0;
@@ -714,10 +765,11 @@
                 const endDate = new Date(tenant.endDate);
                 const monthsToExpiry = (endDate - today) / (1000 * 60 * 60 * 24 * 30);
                 
-                if (rentBalance > 0) {
-                    rentDueCount++;
-                } else if (monthsToExpiry <= 3 && monthsToExpiry > 0) {
+                // Count only tenants with expiry within 3 months as "expiring"
+                if (monthsToExpiry <= 3 && monthsToExpiry > 0) {
                     expiringCount++;
+                } else if (rentBalance > 0) {
+                    rentDueCount++;
                 } else {
                     upToDateCount++;
                 }
@@ -752,8 +804,11 @@
             document.getElementById('modalTitle').textContent = 'Edit Tenant';
             document.getElementById('roomNo').value = tenant.roomNo;
             document.getElementById('tenantName').value = tenant.tenantName;
-            document.getElementById('startDate').value = tenant.startDate;
-            document.getElementById('endDate').value = tenant.endDate;
+            
+            // Convert dates to proper format for date inputs (YYYY-MM-DD)
+            document.getElementById('startDate').value = formatDateForInput(tenant.startDate);
+            document.getElementById('endDate').value = formatDateForInput(tenant.endDate);
+            
             document.getElementById('amountDue').value = tenant.amountDue;
             document.getElementById('amountPaid').value = tenant.amountPaid;
             document.getElementById('phoneNumber').value = tenant.phoneNumber;
@@ -762,6 +817,81 @@
             document.getElementById('notes').value = tenant.notes;
             
             document.getElementById('tenantModal').style.display = 'block';
+        }
+        
+        // Helper function to format dates for HTML date inputs
+        function formatDateForInput(dateString) {
+            if (!dateString) return '';
+            
+            try {
+                // Handle different date formats that might come from Google Sheets
+                let date;
+                
+                if (dateString.includes('/')) {
+                    // Handle MM/DD/YYYY or DD/MM/YYYY format
+                    const parts = dateString.split('/');
+                    if (parts.length === 3) {
+                        // Assume MM/DD/YYYY format (adjust if your sheet uses DD/MM/YYYY)
+                        date = new Date(parts[2], parts[0] - 1, parts[1]);
+                    }
+                } else if (dateString.includes('-')) {
+                    // Handle YYYY-MM-DD or DD-MM-YYYY format
+                    date = new Date(dateString);
+                } else {
+                    // Try to parse as-is
+                    date = new Date(dateString);
+                }
+                
+                // Return in YYYY-MM-DD format for HTML date input
+                if (date && !isNaN(date.getTime())) {
+                    return date.toISOString().split('T')[0];
+                }
+                
+                return '';
+            } catch (error) {
+                console.log('Error formatting date:', dateString, error);
+                return '';
+            }
+        }
+        
+        // Helper function to format date for display/storage
+        function formatDateForStorage(dateInput) {
+            if (!dateInput) return '';
+            
+            try {
+                const date = new Date(dateInput);
+                if (isNaN(date.getTime())) return dateInput; // Return original if invalid
+                
+                // Format as MM/DD/YYYY (or adjust to match your sheet format)
+                const month = (date.getMonth() + 1).toString().padStart(2, '0');
+                const day = date.getDate().toString().padStart(2, '0');
+                const year = date.getFullYear();
+                
+                return `${month}/${day}/${year}`;
+            } catch (error) {
+                console.log('Error formatting date for storage:', dateInput, error);
+                return dateInput;
+            }
+        }
+        
+        // Function to calculate end date (start date + 11 months)
+        function calculateEndDate(startDateValue) {
+            if (!startDateValue) return '';
+            
+            try {
+                const startDate = new Date(startDateValue);
+                if (isNaN(startDate.getTime())) return '';
+                
+                // Add 11 months
+                const endDate = new Date(startDate);
+                endDate.setMonth(endDate.getMonth() + 11);
+                
+                // Return in YYYY-MM-DD format for the date input
+                return endDate.toISOString().split('T')[0];
+            } catch (error) {
+                console.log('Error calculating end date:', error);
+                return '';
+            }
         }
         
         function deleteTenant(index) {
@@ -784,8 +914,8 @@
             const formData = {
                 roomNo: document.getElementById('roomNo').value,
                 tenantName: document.getElementById('tenantName').value,
-                startDate: document.getElementById('startDate').value,
-                endDate: document.getElementById('endDate').value,
+                startDate: formatDateForStorage(document.getElementById('startDate').value),
+                endDate: formatDateForStorage(document.getElementById('endDate').value),
                 amountDue: document.getElementById('amountDue').value,
                 amountPaid: document.getElementById('amountPaid').value,
                 rentBalance: (parseFloat(document.getElementById('amountDue').value) - parseFloat(document.getElementById('amountPaid').value)).toFixed(2),
@@ -809,8 +939,8 @@
             updateStatusCards();
             closeModal();
             
-            // In production, sync with Google Sheets
-            // syncWithGoogleSheets(formData, currentEditingRow);
+            // In production, sync with Google Sheets via Apps Script
+            // syncTenantData(formData, currentEditingRow);
         }
         
         function makeJSONPRequest(action, params = {}) {
@@ -851,14 +981,19 @@
         async function sendExpiryReminders() {
             try {
                 showLoading();
-                console.log('📧 Sending expiry reminders via Google Apps Script...');
+                console.log('Sending expiry reminders via Google Apps Script...');
                 
                 const result = await makeJSONPRequest('sendReminders', { type: 'expiry' });
                 
                 hideLoading();
                 if (result.success) {
                     showSuccess(result.message);
-                    console.log(`✅ ${result.emailsSent || 0} expiry reminders sent`);
+                    console.log(`${result.emailsSent || 0} expiry reminders sent`);
+                    
+                    // Refresh data after sending reminders
+                    setTimeout(() => {
+                        loadDataFromGoogleSheets();
+                    }, 1000);
                 } else {
                     showError(result.error || 'Failed to send expiry reminders');
                 }
@@ -872,14 +1007,19 @@
         async function sendRentReminders() {
             try {
                 showLoading();
-                console.log('📧 Sending rent reminders via Google Apps Script...');
+                console.log('Sending rent reminders via Google Apps Script...');
                 
                 const result = await makeJSONPRequest('sendReminders', { type: 'rent' });
                 
                 hideLoading();
                 if (result.success) {
                     showSuccess(result.message);
-                    console.log(`✅ ${result.emailsSent || 0} rent reminders sent`);
+                    console.log(`${result.emailsSent || 0} rent reminders sent`);
+                    
+                    // Refresh data after sending reminders
+                    setTimeout(() => {
+                        loadDataFromGoogleSheets();
+                    }, 1000);
                 } else {
                     showError(result.error || 'Failed to send rent reminders');
                 }
@@ -888,6 +1028,11 @@
                 console.error('Error sending rent reminders:', error);
                 showError(`Failed to send reminders: ${error.message}`);
             }
+        }
+        
+        function refreshData() {
+            console.log('Manual refresh triggered...');
+            loadDataFromGoogleSheets();
         }
         
         function refreshData() {
