@@ -462,7 +462,7 @@
     <script>
         // Configuration - Only need your Google Apps Script Web App URL
         const SHEET_CONFIG = {
-            webAppUrl: 'https://script.google.com/macros/s/AKfycby9tOFED5PktAqe2GLsnxE843Z6siRVn_ov65bmomDCRzbhRwOmrWifQyH0xUx6JjvfjQ/exec', // Replace with your actual web app URL
+            webAppUrl: 'https://script.google.com/macros/s/AKfycbyM8aawOSWrFJyu5zjHz9knq-QllPBovB0ClQFPHFOs0pet-kojW2pV0OUTroTXmeZc7Q/exec', // Replace with your actual web app URL
             range: 'KUB Weija!A:L', // Keep for reference, but not used
             emailService: 'google_apps_script' // Using Apps Script for email
         };
@@ -562,6 +562,48 @@
             updateStatusCards();
         }
         
+        // JSONP function to bypass CORS
+        function loadDataWithJSONP() {
+            return new Promise((resolve, reject) => {
+                // Create unique callback name
+                const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+                
+                // Create script element
+                const script = document.createElement('script');
+                
+                // Set up callback
+                window[callbackName] = function(data) {
+                    resolve(data);
+                    document.head.removeChild(script);
+                    delete window[callbackName];
+                };
+                
+                // Handle errors
+                script.onerror = function() {
+                    reject(new Error('JSONP request failed'));
+                    document.head.removeChild(script);
+                    delete window[callbackName];
+                };
+                
+                // Set timeout
+                setTimeout(() => {
+                    if (window[callbackName]) {
+                        reject(new Error('JSONP request timeout'));
+                        if (script.parentNode) {
+                            document.head.removeChild(script);
+                        }
+                        delete window[callbackName];
+                    }
+                }, 30000); // 30 second timeout
+                
+                // Make request
+                const url = `${SHEET_CONFIG.webAppUrl}?action=getTenants&callback=${callbackName}&timestamp=${Date.now()}`;
+                console.log('Making JSONP request to:', url);
+                script.src = url;
+                document.head.appendChild(script);
+            });
+        }
+        
         async function loadDataFromGoogleSheets() {
             // Test configuration first
             if (SHEET_CONFIG.webAppUrl === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE') {
@@ -571,42 +613,16 @@
             
             try {
                 showLoading();
+                console.log('🚀 Loading data using JSONP to avoid CORS...');
                 
-                // Check if running locally and use CORS proxy
-                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                let url;
-                
-                if (isLocal) {
-                    // Use CORS proxy for local development
-                    const corsProxy = 'https://cors-anywhere.herokuapp.com/';
-                    url = `${corsProxy}${SHEET_CONFIG.webAppUrl}?action=getTenants&timestamp=${Date.now()}`;
-                    console.log('🛠️ Running locally - using CORS proxy');
-                } else {
-                    // Direct call for production
-                    url = `${SHEET_CONFIG.webAppUrl}?action=getTenants&timestamp=${Date.now()}`;
-                    console.log('🚀 Running in production - direct call');
-                }
-                
-                console.log('Fetching from:', url);
-                
-                const response = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'Cache-Control': 'no-cache'
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const result = await response.json();
+                // Use JSONP to bypass CORS
+                const result = await loadDataWithJSONP();
                 console.log('Response from Google Apps Script:', result);
                 
                 if (result.success && result.data) {
                     tenancyData = result.data;
                     
-                    console.log(`Loaded ${tenancyData.length} tenant records from Apps Script`);
+                    console.log(`✅ Loaded ${tenancyData.length} tenant records from Apps Script`);
                     hideLoading();
                     renderTable();
                     updateStatusCards();
@@ -614,25 +630,28 @@
                     
                 } else {
                     hideLoading();
-                    showError(result.error || 'Failed to load data from Google Apps Script');
+                    if (result.error) {
+                        showError(`Google Apps Script Error: ${result.error}`);
+                    } else {
+                        showError('No data received from Google Apps Script');
+                    }
+                    
+                    // Show troubleshooting info if available
+                    if (result.troubleshooting) {
+                        console.log('Troubleshooting tips:', result.troubleshooting);
+                    }
                 }
                 
             } catch (error) {
                 hideLoading();
                 console.error('Error loading from Google Apps Script:', error);
+                showError(`Failed to load data: ${error.message}`);
                 
-                if (error.message.includes('CORS')) {
-                    showError('CORS error detected. For local development, try using a local server or deploy to GitHub Pages.');
-                } else {
-                    showError(`Failed to load data: ${error.message}`);
-                }
-                
-                // Show troubleshooting tips
-                console.log('Troubleshooting tips:');
-                console.log('1. For local testing, use "python -m http.server" or similar');
-                console.log('2. Or deploy to GitHub Pages where CORS won\'t be an issue');
-                console.log('3. Make sure your Google Apps Script is deployed as a web app');
-                console.log('4. Verify the web app URL is correct');
+                console.log('🔧 Troubleshooting tips:');
+                console.log('1. Make sure your Google Apps Script is deployed as a web app');
+                console.log('2. Verify the web app URL is correct');
+                console.log('3. Check that the web app allows anonymous access');
+                console.log('4. Try opening the web app URL directly in browser to test');
             }
         }
         
@@ -794,17 +813,52 @@
             // syncWithGoogleSheets(formData, currentEditingRow);
         }
         
+        function makeJSONPRequest(action, params = {}) {
+            return new Promise((resolve, reject) => {
+                const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+                const script = document.createElement('script');
+                
+                window[callbackName] = function(data) {
+                    resolve(data);
+                    document.head.removeChild(script);
+                    delete window[callbackName];
+                };
+                
+                script.onerror = function() {
+                    reject(new Error('JSONP request failed'));
+                    document.head.removeChild(script);
+                    delete window[callbackName];
+                };
+                
+                setTimeout(() => {
+                    if (window[callbackName]) {
+                        reject(new Error('Request timeout'));
+                        if (script.parentNode) document.head.removeChild(script);
+                        delete window[callbackName];
+                    }
+                }, 30000);
+                
+                const queryParams = Object.keys(params).map(key => 
+                    `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`
+                ).join('&');
+                
+                const url = `${SHEET_CONFIG.webAppUrl}?action=${action}&callback=${callbackName}&timestamp=${Date.now()}&${queryParams}`;
+                script.src = url;
+                document.head.appendChild(script);
+            });
+        }
+        
         async function sendExpiryReminders() {
             try {
                 showLoading();
-                const url = `${SHEET_CONFIG.webAppUrl}?action=sendReminders&type=expiry&timestamp=${Date.now()}`;
+                console.log('📧 Sending expiry reminders via Google Apps Script...');
                 
-                const response = await fetch(url);
-                const result = await response.json();
+                const result = await makeJSONPRequest('sendReminders', { type: 'expiry' });
                 
                 hideLoading();
                 if (result.success) {
                     showSuccess(result.message);
+                    console.log(`✅ ${result.emailsSent || 0} expiry reminders sent`);
                 } else {
                     showError(result.error || 'Failed to send expiry reminders');
                 }
@@ -818,14 +872,14 @@
         async function sendRentReminders() {
             try {
                 showLoading();
-                const url = `${SHEET_CONFIG.webAppUrl}?action=sendReminders&type=rent&timestamp=${Date.now()}`;
+                console.log('📧 Sending rent reminders via Google Apps Script...');
                 
-                const response = await fetch(url);
-                const result = await response.json();
+                const result = await makeJSONPRequest('sendReminders', { type: 'rent' });
                 
                 hideLoading();
                 if (result.success) {
                     showSuccess(result.message);
+                    console.log(`✅ ${result.emailsSent || 0} rent reminders sent`);
                 } else {
                     showError(result.error || 'Failed to send rent reminders');
                 }
