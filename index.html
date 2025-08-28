@@ -1,4 +1,26 @@
-// Add this test function to verify Google Apps Script communication
+// Add debugging functions to the controls section
+        function testDirectURL() {
+            const testUrl = `${SHEET_CONFIG.webAppUrl}?action=getTenants`;
+            console.log('Opening test URL:', testUrl);
+            window.open(testUrl, '_blank');
+        }
+        
+        function testDeleteURL() {
+            if (tenancyData.length === 0) {
+                alert('No data loaded to test delete');
+                return;
+            }
+            
+            const firstTenant = tenancyData[0];
+            if (!firstTenant.rowIndex) {
+                alert('First tenant has no rowIndex');
+                return;
+            }
+            
+            const deleteUrl = `${SHEET_CONFIG.webAppUrl}?action=deleteTenant&rowIndex=${firstTenant.rowIndex}`;
+            console.log('Opening delete test URL:', deleteUrl);
+            window.open(deleteUrl, '_blank');
+        }
         async function testGoogleAppsScript() {
             console.log('Testing Google Apps Script connection...');
             try {
